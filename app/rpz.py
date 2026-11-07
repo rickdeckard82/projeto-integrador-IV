@@ -1,18 +1,20 @@
 from datetime import datetime, timezone
 
 
-def build_rpz_zone(domains):
+def build_rpz_zone(domains, nameserver=None):
+    """nameserver: servidor de nomes do SOA/NS (Geral > Parâmetros); vazio = localhost."""
     serial = datetime.now(timezone.utc).strftime("%Y%m%d%H")
+    nameserver = fqdn(nameserver or "localhost")
     lines = [
         "$TTL 1H",
-        "@       IN      SOA localhost. anycast1.neolink.com.br. (",
+        f"@       IN      SOA localhost. {nameserver} (",
         f"                {serial}      ; Serial",
         "                1h              ; Refresh",
         "                15m             ; Retry",
         "                30d             ; Expire",
         "                2h              ; Negative Cache TTL",
         "        )",
-        "        IN      NS      anycast1.neolink.com.br.",
+        f"        IN      NS      {nameserver}",
         "",
         "$ORIGIN rpz.zone.",
         "",

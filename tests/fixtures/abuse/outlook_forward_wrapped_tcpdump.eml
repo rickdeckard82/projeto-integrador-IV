@@ -1,0 +1,82 @@
+From: <noc@isp.example>
+To: <abuse@isp.example>
+Subject: ENC: Compromised host used for an attack: 203.0.113.199 [~57.1 Mbps]
+Date: Mon, 19 Oct 2026 19:55:00 -0300
+Message-ID: <outlook-fwd@isp.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed;
+	boundary="----=_NextPart_000_02B1"
+Content-Language: pt-br
+
+------=_NextPart_000_02B1
+Content-Type: text/plain;
+	charset="iso-8859-1"
+Content-Transfer-Encoding: quoted-printable
+
+ > -----Mensagem original-----
+ > De: CERT.br <cert@cert.example>
+ > Assunto: Re: Compromised host used for an attack: 203.0.113.199 [~57.1
+ > Mbps]
+ > 
+ > We are forwarding your email to the proper contacts for this network.
+ > 
+ > ----- Original message as text -----
+ > From: NFO DDoS notifier <ddos-response@nfo.example>
+ > Subject: Compromised host used for an attack: 203.0.113.199 [~57.1
+ > Mbps]
+ > 
+ > An IP address (203.0.113.199) under your control appears to have attacked
+ > one of our customers as part of a coordinated DDoS botnet.
+ > 
+ > Date/timestamps (at the very left) are UTC.
+ > 
+ > 2026-10-17 18:32:58.942745 IP (tos 0x0, ttl 51, id 29942, offset 0, flags
+ > [none], proto UDP (17), length 1428)
+ >     203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*|
+ > [11884q][|domain]
+ > 	0x0000:  4500 0594 74f6 0000 3311 99d2 b180 ffc7  E...t...3.......
+ > 	0x0050:  1272 25d9 ea35                           .r%..5
+ > 2026-10-17 18:32:59.055210 IP (tos 0x0, ttl 51, id 30047, offset 0, flags
+ > [none], proto UDP (17), length 1428)
+ >     203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*|
+ > [11884q][|domain]
+ > 	0x0000:  4500 0594 74f6 0000 3311 99d2 b180 ffc7  E...t...3.......
+ > 	0x0050:  1272 25d9 ea35                           .r%..5
+ > 
+ > (The final octet of our customer's IP address is masked in the above output.)
+ > 
+
+------=_NextPart_000_02B1
+Content-Type: message/rfc822
+Content-Transfer-Encoding: 7bit
+Content-Disposition: attachment
+
+From: "NFO DDoS notifier" <ddos-response@nfo.example>
+To: <cert@cert.example>
+Subject: Compromised host used for an attack: 203.0.113.199 [~57.1 Mbps]
+Date: Sat, 17 Oct 2026 12:45:14 -0700
+Content-Type: text/plain;
+	charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+An IP address (203.0.113.199) under your control appears to have attacked
+one of our customers as part of a coordinated DDoS botnet.
+
+Date/timestamps (at the very left) are UTC.
+
+2026-10-17 18:32:58.942745 IP (tos 0x0, ttl 51, id 29942, offset 0, flags
+[none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*|
+[11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 99d2 b180 ffc7  E...t...3.......
+	0x0050:  1272 25d9 ea35                           .r%..5
+2026-10-17 18:32:59.055210 IP (tos 0x0, ttl 51, id 30047, offset 0, flags
+[none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*|
+[11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 99d2 b180 ffc7  E...t...3.......
+	0x0050:  1272 25d9 ea35                           .r%..5
+
+(The final octet of our customer's IP address is masked in the above output.)
+
+------=_NextPart_000_02B1--

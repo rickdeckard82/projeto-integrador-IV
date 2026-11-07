@@ -1,0 +1,77 @@
+From: "CERT.br" <cert@cert.example>
+To: "NFO DDoS notifier" <ddos-response@nfo.example>, noc@isp.example
+Subject: Re: Compromised host used for an attack: 203.0.113.199 [~57.1 Mbps]
+Date: Mon, 19 Oct 2026 18:10:10 +0000 (UTC)
+Message-ID: <cert-fwd@cert.example>
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Content-Type: multipart/mixed; boundary="17922663170.0FFa.6053"
+
+--17922663170.0FFa.6053
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Hello,
+
+We are forwarding your email to the proper contacts for this network
+so they can handle this incident.
+
+Original message was attached to this email.
+
+======================================================================
+----- Original message as text -----
+From: NFO DDoS notifier <ddos-response@nfo.example>
+To: cert@cert.example
+Subject: Compromised host used for an attack: 203.0.113.199 [~57.1 Mbps]
+Date: Sat, 17 Oct 2026 12:45:14 -0700
+Message-ID: <461172@nfo.example>
+
+An IP address (203.0.113.199) under your control appears to have attacked one of our customers as part of a coordinated DDoS botnet. We manually reviewed the captures.
+
+Date/timestamps (at the very left) are UTC.
+
+2026-10-17 18:32:58.942745 IP (tos 0x0, ttl 51, id 29940, offset 0, flags [none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*| [11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 9b14 b180 ffc7  E...t...3.......
+	0x0010:  4a5b 77ed 3ed9 0035 0580 0ad2 1e10 7e2a  J[w.>..5......~*
+2026-10-17 18:32:59.055210 IP (tos 0x0, ttl 51, id 29941, offset 0, flags [none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*| [11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 9b14 b180 ffc7  E...t...3.......
+	0x0010:  4a5b 77ed 3ed9 0035 0580 0ad2 1e10 7e2a  J[w.>..5......~*
+2026-10-17 18:32:59.170846 IP (tos 0x0, ttl 51, id 29942, offset 0, flags [none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*| [11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 9b14 b180 ffc7  E...t...3.......
+	0x0010:  4a5b 77ed 3ed9 0035 0580 0ad2 1e10 7e2a  J[w.>..5......~*
+------------------------------------
+
+--17922663170.0FFa.6053
+Content-Type: message/rfc822
+Content-Disposition: inline; filename="original message"
+
+From: NFO DDoS notifier <ddos-response@nfo.example>
+To: cert@cert.example
+Subject: Compromised host used for an attack: 203.0.113.199 [~57.1 Mbps]
+Date: Sat, 17 Oct 2026 12:45:14 -0700
+Message-ID: <461172@nfo.example>
+MIME-Version: 1.0
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/plain; charset="iso-8859-1"
+
+An IP address (203.0.113.199) under your control appears to have attacked one of our customers as part of a coordinated DDoS botnet. We manually reviewed the captures.
+
+Date/timestamps (at the very left) are UTC.
+
+2026-10-17 18:32:58.942745 IP (tos 0x0, ttl 51, id 29940, offset 0, flags [none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*| [11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 9b14 b180 ffc7  E...t...3.......
+	0x0010:  4a5b 77ed 3ed9 0035 0580 0ad2 1e10 7e2a  J[w.>..5......~*
+2026-10-17 18:32:59.055210 IP (tos 0x0, ttl 51, id 29941, offset 0, flags [none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*| [11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 9b14 b180 ffc7  E...t...3.......
+	0x0010:  4a5b 77ed 3ed9 0035 0580 0ad2 1e10 7e2a  J[w.>..5......~*
+2026-10-17 18:32:59.170846 IP (tos 0x0, ttl 51, id 29942, offset 0, flags [none], proto UDP (17), length 1428)
+    203.0.113.199.16089 > 198.51.100.x.53: 7696 updateD NXDomain*| [11884q][|domain]
+	0x0000:  4500 0594 74f6 0000 3311 9b14 b180 ffc7  E...t...3.......
+	0x0010:  4a5b 77ed 3ed9 0035 0580 0ad2 1e10 7e2a  J[w.>..5......~*
+
+--17922663170.0FFa.6053--

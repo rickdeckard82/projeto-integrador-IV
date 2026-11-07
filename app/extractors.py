@@ -254,15 +254,12 @@ def extract_xlsx_text(path):
 
 
 def extract_xlsx_domains(path):
-    domains = set()
     workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
     try:
-        for sheet in workbook.worksheets:
-            rows = list(sheet.iter_rows(values_only=True))
-            domains.update(extract_domains_from_rows(rows))
+        sheets = [list(sheet.iter_rows(values_only=True)) for sheet in workbook.worksheets]
     finally:
         workbook.close()
-    return sorted(domain for domain in domains if domain)
+    return extract_domains_from_sheets(sheets)
 
 
 def extract_xls_text(path):
@@ -275,12 +272,12 @@ def extract_xls_text(path):
 
 
 def extract_xls_domains(path):
-    domains = set()
     workbook = xlrd.open_workbook(path)
-    for sheet in workbook.sheets():
-        rows = [sheet.row_values(row_idx) for row_idx in range(sheet.nrows)]
-        domains.update(extract_domains_from_rows(rows))
-    return sorted(domain for domain in domains if domain)
+    sheets = [
+        [sheet.row_values(row_idx) for row_idx in range(sheet.nrows)]
+        for sheet in workbook.sheets()
+    ]
+    return extract_domains_from_sheets(sheets)
 
 
 def extract_ods_text(path):
@@ -291,18 +288,21 @@ def extract_ods_text(path):
 
 
 def extract_ods_domains(path):
-    domains = set()
-    domains.update(extract_domains_from_rows(extract_ods_rows(path)))
-    return sorted(domain for domain in domains if domain)
+    return extract_domains_from_sheets(extract_ods_sheets(path))
 
 
 def extract_ods_rows(path):
+    return [row for sheet in extract_ods_sheets(path) for row in sheet]
+
+
+def extract_ods_sheets(path):
     with zipfile.ZipFile(path) as ods_file:
         content = ods_file.read("content.xml")
 
     root = ElementTree.fromstring(content)
-    rows = []
+    sheets = []
     for table in root.findall(".//table:table", ODS_NAMESPACES):
+        rows = []
         for row in table.findall("table:table-row", ODS_NAMESPACES):
             repeat_rows = ods_repeat_count(row, "number-rows-repeated")
             values = []
@@ -312,7 +312,8 @@ def extract_ods_rows(path):
                 values.extend([text] * repeat_columns)
             if any(value for value in values):
                 rows.extend([values] * repeat_rows)
-    return rows
+        sheets.append(rows)
+    return sheets
 
 
 def ods_repeat_count(element, attribute_name):
@@ -334,17 +335,59 @@ def ods_cell_text(cell):
     return "\n".join(parts)
 
 
-def extract_domains_from_rows(rows):
-    domains = set()
-    header_idx, new_domain_columns = find_new_domain_columns(rows)
-    if new_domain_columns:
-        data_rows = rows[header_idx + 1 :]
-        for row in data_rows:
-            for column_idx in new_domain_columns:
-                if column_idx < len(row) and row[column_idx] is not None:
-                    domains.update(extract_domains_from_text(row[column_idx]))
-        return domains
+# Prioridade do cabeçalho da coluna de domínios: "novos domínios" > "domínio"/"url".
+NEW_DOMAIN_HEADER_PRIORITY = 2
+DOMAIN_HEADER_PRIORITY = 1
+MAX_HEADER_WORDS = 4
+DOMAIN_HEADERS = {
+    "dominio",
+    "dominios",
+    "nome de dominio",
+    "nome do dominio",
+    "domain",
+    "domains",
+    "url",
+    "urls",
+}
 
+
+def extract_domains_from_sheets(sheets):
+    # Só lê as colunas cujo cabeçalho identifica domínios, e só nas abas que têm esse cabeçalho.
+    # Varrer todas as células puxa texto livre de colunas/abas auxiliares ("hospedagem: Amazon.com, Inc.",
+    # nota citando o Registro.br) e manda para a RPZ domínios que não estão na lista do ofício.
+    # A varredura completa fica só como último recurso, quando nenhuma aba tem cabeçalho reconhecido.
+    located = [(rows, *find_domain_columns(rows)) for rows in sheets]
+    best_priority = max((priority for _, _, _, priority in located), default=0)
+
+    domains = set()
+    if best_priority:
+        for rows, header_idx, columns, priority in located:
+            if priority == best_priority:
+                domains.update(extract_domains_from_columns(rows, header_idx, columns))
+    else:
+        for rows in sheets:
+            domains.update(extract_domains_from_all_cells(rows))
+    return sorted(domain for domain in domains if domain)
+
+
+def extract_domains_from_rows(rows):
+    header_idx, columns, priority = find_domain_columns(rows)
+    if priority:
+        return extract_domains_from_columns(rows, header_idx, columns)
+    return extract_domains_from_all_cells(rows)
+
+
+def extract_domains_from_columns(rows, header_idx, columns):
+    domains = set()
+    for row in rows[header_idx + 1 :]:
+        for column_idx in columns:
+            if column_idx < len(row) and row[column_idx] is not None:
+                domains.update(extract_domains_from_text(row[column_idx]))
+    return domains
+
+
+def extract_domains_from_all_cells(rows):
+    domains = set()
     for row in rows:
         for value in row:
             if value is not None:
@@ -352,21 +395,42 @@ def extract_domains_from_rows(rows):
     return domains
 
 
+def find_domain_columns(rows):
+    for priority, matches in (
+        (NEW_DOMAIN_HEADER_PRIORITY, is_new_domain_header),
+        (DOMAIN_HEADER_PRIORITY, is_domain_header),
+    ):
+        for row_idx, row in enumerate(rows[:20]):
+            columns = [
+                column_idx
+                for column_idx, value in enumerate(row)
+                if matches(value)
+            ]
+            if columns:
+                return row_idx, columns, priority
+    return None, [], 0
+
+
 def find_new_domain_columns(rows):
-    for row_idx, row in enumerate(rows[:20]):
-        columns = [
-            column_idx
-            for column_idx, value in enumerate(row)
-            if is_new_domain_header(value)
-        ]
-        if columns:
-            return row_idx, columns
+    header_idx, columns, priority = find_domain_columns(rows)
+    if priority == NEW_DOMAIN_HEADER_PRIORITY:
+        return header_idx, columns
     return None, []
 
 
 def is_new_domain_header(value):
-    normalized = normalize_header(value)
-    return "dominio" in normalized and ("novo" in normalized or "novos" in normalized)
+    # Cabeçalho é rótulo curto ("Novos domínios", "Domínio novo"); frase longa que só cita as palavras
+    # (ex.: nota "esta planilha lista apenas os 1344 domínios novos") não pode virar coluna de domínio.
+    words = normalize_header(value).split()
+    if not words or len(words) > MAX_HEADER_WORDS:
+        return False
+    return any(word in {"dominio", "dominios"} for word in words) and any(
+        word in {"novo", "novos"} for word in words
+    )
+
+
+def is_domain_header(value):
+    return normalize_header(value) in DOMAIN_HEADERS
 
 
 def normalize_header(value):

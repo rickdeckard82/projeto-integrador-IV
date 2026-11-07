@@ -1,0 +1,6 @@
+From: someone@html.example
+To: abuse@isp.example
+Subject: spam
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Spam from <b>203.0.113.70</b> &amp; friends</p></body></html>

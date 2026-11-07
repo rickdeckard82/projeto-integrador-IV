@@ -1,4 +1,3 @@
-import os
 import shlex
 import time
 from datetime import datetime
@@ -7,46 +6,35 @@ from pathlib import Path
 import paramiko
 
 
-def publish_zone(zone_text):
-    host = os.getenv("SSH_HOST")
-    user = os.getenv("SSH_USER")
-    remote_path = os.getenv("RPZ_REMOTE_PATH", "/var/cache/bind/db.rpz.zone")
-    reload_command = os.getenv("RPZ_RELOAD_COMMAND", "sudo service bind9 reload")
-    test_resolver = os.getenv("RPZ_TEST_RESOLVER", "127.0.0.1")
+def publish_zone(zone_text, servers, strict_host_key_checking=True):
+    """Publica a zona em cada servidor BIND cadastrado em Parâmetros."""
+    if not servers:
+        raise RuntimeError("Cadastre ao menos um servidor BIND em Geral > Parâmetros antes de publicar.")
 
-    if not host or not user:
-        raise RuntimeError("Configure SSH_HOST e SSH_USER no arquivo .env antes de publicar.")
+    results = []
+    errors = []
+    for server in servers:
+        label = f"{server['name']} ({server['host']})"
+        try:
+            output = publish_zone_to_server(zone_text, server, strict_host_key_checking)
+            results.append(f"{label}:\n{output}")
+        except Exception as exc:
+            errors.append(f"{label}: {exc}")
 
-    port = int(os.getenv("SSH_PORT", "22"))
-    password = os.getenv("SSH_PASSWORD") or None
-    key_path = os.getenv("SSH_KEY_PATH") or None
-    key_passphrase = os.getenv("SSH_KEY_PASSPHRASE") or None
-    sudo_password = os.getenv("SUDO_PASSWORD") or None
+    summary = "\n\n".join(results + errors)
+    if errors:
+        raise RuntimeError(summary)
+    return summary
+
+
+def publish_zone_to_server(zone_text, server, strict_host_key_checking):
+    remote_path = server["remote_path"]
     tmp_path = f"/tmp/{Path(remote_path).name}.upload"
     backup_path = f"{remote_path}.{datetime.now().strftime('%Y%m%d%H%M')}"
+    sudo_password = server.get("sudo_password") or None
 
-    client = paramiko.SSHClient()
-    client.load_system_host_keys()
-    if os.getenv("SSH_STRICT_HOST_KEY_CHECKING", "false").lower() in {"1", "true", "yes"}:
-        client.set_missing_host_key_policy(paramiko.RejectPolicy())
-    else:
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
-    connect_kwargs = {"hostname": host, "port": port, "username": user, "timeout": 15}
-    if key_path:
-        if not Path(key_path).is_file():
-            raise RuntimeError(f"Chave SSH não encontrada no container: {key_path}")
-        if Path(key_path).stat().st_size == 0:
-            raise RuntimeError(f"Chave SSH está vazia no container: {key_path}")
-        connect_kwargs["key_filename"] = key_path
-        connect_kwargs["look_for_keys"] = False
-        connect_kwargs["allow_agent"] = False
-        if key_passphrase:
-            connect_kwargs["passphrase"] = key_passphrase
-    elif password:
-        connect_kwargs["password"] = password
-
-    client.connect(**connect_kwargs)
+    client = build_ssh_client(strict_host_key_checking)
+    client.connect(**connect_kwargs_for(server))
     try:
         with client.open_sftp() as sftp:
             with sftp.file(tmp_path, "w") as remote_file:
@@ -58,11 +46,12 @@ def publish_zone(zone_text):
             tmp_path,
             remote_path,
             backup_path,
-            reload_command,
+            server["reload_command"],
             test_domain,
-            test_resolver,
+            server["test_resolver"],
             redirect_domain,
             redirect_target,
+            use_sudo_password=bool(sudo_password),
         )
         stdin, stdout, stderr = client.exec_command(command, timeout=30)
         if sudo_password:
@@ -80,40 +69,20 @@ def publish_zone(zone_text):
         client.close()
 
 
-def publish_ip_routes(route_config, routers=None):
+def publish_ip_routes(route_config, routers, strict_host_key_checking=True):
+    """Publica as rotas em cada roteador cadastrado em Parâmetros (cada um com suas credenciais)."""
     commands = [line.strip() for line in route_config.splitlines() if line.strip()]
     if not commands:
         raise RuntimeError("Nenhuma rota ativa para publicar.")
-
-    targets = build_router_targets(routers)
-    if not targets:
-        raise RuntimeError(
-            "Configure ROUTER_SSH_HOST no .env ou cadastre roteadores em Geral/Parâmetros antes de publicar."
-        )
-
-    user = os.getenv("ROUTER_SSH_USER") or os.getenv("SSH_USER")
-    if not user:
-        raise RuntimeError("Configure ROUTER_SSH_USER/SSH_USER no arquivo .env.")
-
-    port = int(os.getenv("ROUTER_SSH_PORT") or os.getenv("SSH_PORT", "22"))
-    password = os.getenv("ROUTER_SSH_PASSWORD") or os.getenv("SSH_PASSWORD") or None
-    key_path = os.getenv("ROUTER_SSH_KEY_PATH") or os.getenv("SSH_KEY_PATH") or None
-    key_passphrase = os.getenv("ROUTER_SSH_KEY_PASSPHRASE") or os.getenv("SSH_KEY_PASSPHRASE") or None
+    if not routers:
+        raise RuntimeError("Cadastre ao menos um roteador em Geral > Parâmetros antes de publicar.")
 
     results = []
     errors = []
-    for target in targets:
-        label = f"{target['name']} ({target['host']})"
+    for router in routers:
+        label = f"{router['name']} ({router['host']})"
         try:
-            publish_commands_to_host(
-                commands,
-                host=target["host"],
-                port=port,
-                user=user,
-                password=password,
-                key_path=key_path,
-                key_passphrase=key_passphrase,
-            )
+            publish_commands_to_host(commands, router, strict_host_key_checking)
             results.append(f"{label}: {len(commands)} rotas discard publicadas.")
         except Exception as exc:
             errors.append(f"{label}: {exc}")
@@ -124,35 +93,9 @@ def publish_ip_routes(route_config, routers=None):
     return summary
 
 
-def build_router_targets(routers):
-    targets = []
-    for router in routers or []:
-        host = (router.get("host") or "").strip()
-        if not host:
-            continue
-        name = (router.get("name") or host).strip()
-        targets.append({"name": name, "host": host})
-    if targets:
-        return targets
-
-    fallback_host = os.getenv("ROUTER_SSH_HOST", "10.99.99.8")
-    if fallback_host:
-        return [{"name": fallback_host, "host": fallback_host}]
-    return []
-
-
-def publish_commands_to_host(commands, host, port, user, password, key_path, key_passphrase):
-    client = build_ssh_client()
-    connect_kwargs = build_connect_kwargs(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        key_path=key_path,
-        key_passphrase=key_passphrase,
-    )
-
-    client.connect(**connect_kwargs)
+def publish_commands_to_host(commands, router, strict_host_key_checking):
+    client = build_ssh_client(strict_host_key_checking)
+    client.connect(**connect_kwargs_for(router))
     try:
         shell = client.invoke_shell()
         output = read_shell(shell)
@@ -187,14 +130,25 @@ def publish_commands_to_host(commands, host, port, user, password, key_path, key
         client.close()
 
 
-def build_ssh_client():
+def build_ssh_client(strict_host_key_checking):
     client = paramiko.SSHClient()
     client.load_system_host_keys()
-    if os.getenv("SSH_STRICT_HOST_KEY_CHECKING", "false").lower() in {"1", "true", "yes"}:
+    if strict_host_key_checking:
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
     else:
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     return client
+
+
+def connect_kwargs_for(target):
+    return build_connect_kwargs(
+        host=target["host"],
+        port=target["port"],
+        user=target["user"],
+        password=target.get("password") or None,
+        key_path=target.get("key_path") or None,
+        key_passphrase=target.get("key_passphrase") or None,
+    )
 
 
 def build_connect_kwargs(host, port, user, password=None, key_path=None, key_passphrase=None):
@@ -303,6 +257,7 @@ def build_publish_command(
     test_resolver="127.0.0.1",
     redirect_domain=None,
     redirect_target=None,
+    use_sudo_password=False,
 ):
     quoted_tmp = shlex.quote(tmp_path)
     quoted_remote = shlex.quote(remote_path)
@@ -333,7 +288,7 @@ def build_publish_command(
         )
 
     script = " && ".join(steps)
-    if os.getenv("SUDO_PASSWORD"):
+    if use_sudo_password:
         return f"sudo -S -p '' sh -c {shlex.quote(script)}"
     return f"sudo -n sh -c {shlex.quote(script)}"
 

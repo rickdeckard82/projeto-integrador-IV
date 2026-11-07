@@ -4,35 +4,49 @@ services:
     image: oficios-rpz-app
     container_name: api
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-change-me}
-      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-anatel}:${MYSQL_PASSWORD:-anatel}@db:3306/${MYSQL_DATABASE:-anatel}
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:?defina MYSQL_USER no .env}:${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}@db:3306/${MYSQL_DATABASE:-oficios_rpz}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-300}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
       API_KEY: ${API_KEY:-}
+      # Legado: a caixa de abuse agora fica em Geral > Parâmetros. Se ainda estiver no .env,
+      # é importada uma única vez no primeiro start e depois ignorada.
+      ABUSE_IMAP_HOST: ${ABUSE_IMAP_HOST:-}
+      ABUSE_IMAP_PORT: ${ABUSE_IMAP_PORT:-}
+      ABUSE_IMAP_USER: ${ABUSE_IMAP_USER:-}
+      ABUSE_IMAP_PASSWORD: ${ABUSE_IMAP_PASSWORD:-}
+      ABUSE_IMAP_MAILBOX: ${ABUSE_IMAP_MAILBOX:-}
+      ABUSE_IMAP_CA_FILE: ${ABUSE_IMAP_CA_FILE:-}
+      ABUSE_IMAP_TIMEOUT_SECONDS: ${ABUSE_IMAP_TIMEOUT_SECONDS:-60}
+      WHOIS_LOOKUP_TIMEOUT_SECONDS: ${WHOIS_LOOKUP_TIMEOUT_SECONDS:-8}
+      # Legado (até a 1.3.2): BIND e roteadores agora ficam em Geral > Parâmetros. Se ainda
+      # estiverem no .env, são importados uma única vez no primeiro start e depois ignorados.
       SSH_HOST: ${SSH_HOST:-}
-      SSH_PORT: ${SSH_PORT:-22}
+      SSH_PORT: ${SSH_PORT:-}
       SSH_USER: ${SSH_USER:-}
       SSH_PASSWORD: ${SSH_PASSWORD:-}
       SSH_KEY_PATH: ${SSH_KEY_PATH:-}
       SSH_KEY_PASSPHRASE: ${SSH_KEY_PASSPHRASE:-}
-      SSH_STRICT_HOST_KEY_CHECKING: ${SSH_STRICT_HOST_KEY_CHECKING:-false}
+      SSH_STRICT_HOST_KEY_CHECKING: ${SSH_STRICT_HOST_KEY_CHECKING:-}
       SUDO_PASSWORD: ${SUDO_PASSWORD:-}
-      ROUTER_SSH_HOST: ${ROUTER_SSH_HOST:-10.99.99.8}
-      ROUTER_SSH_PORT: ${ROUTER_SSH_PORT:-22}
+      ROUTER_SSH_HOST: ${ROUTER_SSH_HOST:-}
+      ROUTER_SSH_PORT: ${ROUTER_SSH_PORT:-}
       ROUTER_SSH_USER: ${ROUTER_SSH_USER:-}
       ROUTER_SSH_PASSWORD: ${ROUTER_SSH_PASSWORD:-}
       ROUTER_SSH_KEY_PATH: ${ROUTER_SSH_KEY_PATH:-}
       ROUTER_SSH_KEY_PASSPHRASE: ${ROUTER_SSH_KEY_PASSPHRASE:-}
-      WHOIS_LOOKUP_TIMEOUT_SECONDS: ${WHOIS_LOOKUP_TIMEOUT_SECONDS:-8}
-      RPZ_REMOTE_PATH: ${RPZ_REMOTE_PATH:-/var/cache/bind/db.rpz.zone}
-      RPZ_RELOAD_COMMAND: ${RPZ_RELOAD_COMMAND:-sudo service bind9 reload}
-      RPZ_TEST_RESOLVER: ${RPZ_TEST_RESOLVER:-127.0.0.1}
+      RPZ_REMOTE_PATH: ${RPZ_REMOTE_PATH:-}
+      RPZ_RELOAD_COMMAND: ${RPZ_RELOAD_COMMAND:-}
+      RPZ_TEST_RESOLVER: ${RPZ_TEST_RESOLVER:-}
+      RPZ_NAMESERVER: ${RPZ_NAMESERVER:-}
+      BACKUP_TIMEZONE: ${BACKUP_TIMEZONE:-America/Sao_Paulo}
     expose:
       - "8000"
     volumes:
       - ${HOST_UPLOAD_PATH:-./uploads}:/app/uploads
       - ${HOST_SSH_KEY_PATH:-./ssh/id_rsa}:/run/secrets/bind_ssh_key:ro
+      - ${HOST_SSH_KNOWN_HOSTS_PATH:-./ssh/known_hosts}:/root/.ssh/known_hosts:ro
     depends_on:
       db:
         condition: service_started
@@ -57,13 +71,55 @@ services:
     container_name: whois-worker
     command: python -m app.whois_worker
     environment:
-      SECRET_KEY: ${SECRET_KEY:-dev-change-me}
-      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-anatel}:${MYSQL_PASSWORD:-anatel}@db:3306/${MYSQL_DATABASE:-anatel}
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:?defina MYSQL_USER no .env}:${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}@db:3306/${MYSQL_DATABASE:-oficios_rpz}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?defina ADMIN_PASSWORD no .env}
       WHOIS_LOOKUP_TIMEOUT_SECONDS: ${WHOIS_LOOKUP_TIMEOUT_SECONDS:-8}
       WHOIS_WORKER_INTERVAL_SECONDS: ${WHOIS_WORKER_INTERVAL_SECONDS:-5}
       WHOIS_WORKER_MAX_ATTEMPTS: ${WHOIS_WORKER_MAX_ATTEMPTS:-3}
+    depends_on:
+      db:
+        condition: service_started
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  abuse-worker:
+    build: .
+    image: oficios-rpz-app
+    container_name: abuse-worker
+    command: python -m app.abuse_worker
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:?defina MYSQL_USER no .env}:${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}@db:3306/${MYSQL_DATABASE:-oficios_rpz}
+      ABUSE_IMAP_CA_FILE: ${ABUSE_IMAP_CA_FILE:-}
+      ABUSE_IMAP_TIMEOUT_SECONDS: ${ABUSE_IMAP_TIMEOUT_SECONDS:-60}
+      ABUSE_POLL_INTERVAL_SECONDS: ${ABUSE_POLL_INTERVAL_SECONDS:-600}
+      ABUSE_MAX_MESSAGE_MB: ${ABUSE_MAX_MESSAGE_MB:-25}
+      ABUSE_SESSION_RESOLVER: ${ABUSE_SESSION_RESOLVER:-manual}
+    volumes:
+      - ${HOST_UPLOAD_PATH:-./uploads}:/app/uploads
+    depends_on:
+      db:
+        condition: service_started
+      api:
+        condition: service_started
+    restart: unless-stopped
+
+  backup-worker:
+    build: .
+    image: oficios-rpz-app
+    container_name: backup-worker
+    command: python -m app.backup_worker
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY no .env}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:?defina MYSQL_USER no .env}:${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}@db:3306/${MYSQL_DATABASE:-oficios_rpz}
+      BACKUP_TIMEZONE: ${BACKUP_TIMEZONE:-America/Sao_Paulo}
+      BACKUP_WORKER_INTERVAL_SECONDS: ${BACKUP_WORKER_INTERVAL_SECONDS:-30}
+      DB_BACKUP_TIMEOUT_SECONDS: ${DB_BACKUP_TIMEOUT_SECONDS:-300}
+    volumes:
+      - ${HOST_UPLOAD_PATH:-./uploads}:/app/uploads:ro
     depends_on:
       db:
         condition: service_started
@@ -75,10 +131,10 @@ services:
     image: mysql:8.4.9
     container_name: db
     environment:
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-anatel}
-      MYSQL_USER: ${MYSQL_USER:-anatel}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-anatel}
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-oficios_rpz}
+      MYSQL_USER: ${MYSQL_USER:?defina MYSQL_USER no .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?defina MYSQL_PASSWORD no .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina MYSQL_ROOT_PASSWORD no .env}
     expose:
       - "3306"
     volumes:

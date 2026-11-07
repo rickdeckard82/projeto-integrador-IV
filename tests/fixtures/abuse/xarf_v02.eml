@@ -1,0 +1,31 @@
+From: Reports <reports@blocklist.example>
+To: abuse@isp.example
+Subject: abuse report about 203.0.113.10 - ssh
+Date: Wed, 14 Oct 2026 10:00:00 +0000
+Message-ID: <xarf-1@blocklist.example>
+X-ARF: yes
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B1"
+
+--B1
+Content-Type: text/plain; charset=utf-8
+
+Hello, the IP 203.0.113.10 attacked our host 198.51.100.7.
+
+--B1
+Content-Type: text/plain; charset=utf-8; name="report.txt"
+Content-Disposition: attachment; filename="report.txt"
+
+Reported-From: reports@blocklist.example
+Category: abuse
+Report-Type: login-attack
+Service: ssh
+Version: 0.2
+User-Agent: fail2ban
+Date: 2026-10-14T09:58:12+00:00
+Source-Type: ip-address
+Source: 203.0.113.10
+Port: 22
+Destination: 198.51.100.7
+
+--B1--

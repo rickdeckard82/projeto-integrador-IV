@@ -47,11 +47,13 @@ from ..services import (
     add_domains_to_office,
     add_ips_to_office,
     build_communication_config,
+    configured_bind_servers,
     configured_router_targets,
+    configured_rpz_nameserver,
+    configured_strict_host_key_checking,
     delete_stored_files,
     DEFAULT_ROUTER_COMMAND_IPV4,
     DEFAULT_ROUTER_COMMAND_IPV6,
-    dump_router_targets,
     expired_ip_addresses_for_office,
     ip_addresses_for_office,
     ip_batches_query_for_office,
@@ -62,7 +64,6 @@ from ..services import (
     load_ip_removal_by_ip,
     load_json_list,
     load_offices_by_domain,
-    load_router_targets,
     load_users_by_id,
     normalize_office_key,
     normalize_sei_numbers,
@@ -94,7 +95,16 @@ from ..backup import (
     restore_database,
     restore_files,
 )
+from ..abuse_imap import ImapConfig, ReadOnlyMailbox, connect as imap_connect
+from ..mailer import (
+    SMTP_SECURITIES,
+    describe_error as describe_mail_error,
+    parse_recipients,
+    smtp_config_problem,
+    test_connection as test_smtp_connection,
+)
 from ..rpz import build_rpz_zone
+from ..ssh_settings import dump_targets, load_targets, merge_targets, public_targets
 from ..ssh_publish import publish_ip_routes, publish_zone
 from ..whois_jobs import enqueue_ip_whois_jobs, load_whois_by_ip, load_whois_jobs_by_ip
 from . import api_bp
@@ -133,6 +143,7 @@ def serialize_office(office):
         "sei_numbers": office.sei_numbers,
         "expedition_date": office.expedition_date.isoformat() if office.expedition_date else None,
         "removal_date": office.removal_date.isoformat() if office.removal_date else None,
+        "notification_sent_at": iso_utc(office.notification_sent_at),
         "total_found": office.total_found,
         "new_count": office.new_count,
         "existing_count": office.existing_count,
@@ -314,7 +325,10 @@ def login():
     user.api_token_hash = hash_token(token)
     db.session.commit()
 
-    return jsonify(token=token, user={"id": user.id, "username": user.username})
+    return jsonify(
+        token=token,
+        user={"id": user.id, "username": user.username, "abuse_access": bool(user.abuse_access)},
+    )
 
 
 @api_bp.route("/auth/logout", methods=["POST"])
@@ -334,7 +348,12 @@ def logout():
 def me():
     actor_user = current_actor_user()
     if actor_user:
-        return jsonify(type="user", id=actor_user.id, username=actor_user.username)
+        return jsonify(
+            type="user",
+            id=actor_user.id,
+            username=actor_user.username,
+            abuse_access=bool(actor_user.abuse_access),
+        )
     return jsonify(type="service")
 
 
@@ -430,7 +449,10 @@ def get_office(office_id):
     detail["ip_files"] = [serialize_ip_batch_file(file) for file in ip_files]
 
     ip_addresses = ip_addresses_for_office(office)
-    ip_removal_by_ip = load_ip_removal_by_ip([address.id for address in ip_addresses])
+    ip_removal_by_ip = load_ip_removal_by_ip(
+        [address.id for address in ip_addresses],
+        [batch.id for batch in ip_batches_for_office],
+    )
     detail["ip_addresses"] = [
         {
             **serialize_ip_address(address),
@@ -804,7 +826,7 @@ def office_zone_download(office_id, filename_suffix):
         return jsonify(error="Ofício não encontrado."), 404
 
     names = active_domain_names_for_office(office.id)
-    body = build_rpz_zone(names)
+    body = build_rpz_zone(names, configured_rpz_nameserver())
     filename = f"oficio-{safe_filename(office.office_number)}-{filename_suffix}"
     return Response(
         body, mimetype="text/plain", headers={"Content-Disposition": f"attachment; filename={filename}"}
@@ -1041,7 +1063,7 @@ def toggle_domain(domain_id):
 @require_auth
 def rpz_preview():
     names = active_domain_names_for_rpz()
-    zone = build_rpz_zone(names)
+    zone = build_rpz_zone(names, configured_rpz_nameserver())
     return jsonify(domain_count=len(names), zone=zone)
 
 
@@ -1049,7 +1071,7 @@ def rpz_preview():
 @require_auth
 def rpz_download():
     names = active_domain_names_for_rpz()
-    zone = build_rpz_zone(names)
+    zone = build_rpz_zone(names, configured_rpz_nameserver())
     return Response(
         zone, mimetype="text/plain", headers={"Content-Disposition": "attachment; filename=db.rpz.zone"}
     )
@@ -1227,7 +1249,9 @@ def deploy_ip_routes():
     db.session.commit()
 
     try:
-        message = publish_ip_routes(config, configured_router_targets())
+        message = publish_ip_routes(
+            config, configured_router_targets(), configured_strict_host_key_checking()
+        )
         deployment.status = "success"
         deployment.message = message
         db.session.commit()
@@ -1305,7 +1329,7 @@ def deploy_rpz():
     actor_user = current_actor_user()
 
     names = active_domain_names_for_rpz()
-    zone = build_rpz_zone(names)
+    zone = build_rpz_zone(names, configured_rpz_nameserver())
 
     if not acquire_publish_lock(owner=actor_user.username if actor_user else "api"):
         return jsonify(error=publish_lock_message()), 409
@@ -1321,7 +1345,9 @@ def deploy_rpz():
     db.session.commit()
 
     try:
-        message = publish_zone(zone)
+        message = publish_zone(
+            zone, configured_bind_servers(), configured_strict_host_key_checking()
+        )
         deployment.status = "success"
         deployment.message = message
         db.session.commit()
@@ -1435,6 +1461,7 @@ def serialize_user(user):
         "id": user.id,
         "username": user.username,
         "active": user.active,
+        "abuse_access": bool(user.abuse_access),
         "created_at": iso_utc(user.created_at),
     }
 
@@ -1475,6 +1502,16 @@ def update_user_password(user_id):
     if not user:
         return jsonify(error="Usuário não encontrado."), 404
 
+    # Senha de quem acessa dados pessoais do módulo de abuse só é trocada pelo
+    # próprio usuário ou por outro com o mesmo acesso.
+    actor_user = current_actor_user()
+    if user.abuse_access and not (
+        actor_user and (actor_user.id == user.id or actor_user.abuse_access)
+    ):
+        return jsonify(
+            error="Só um usuário com acesso ao módulo de abuse pode trocar a senha deste usuário."
+        ), 403
+
     payload = request.get_json(silent=True) or {}
     password = payload.get("password") or ""
     if not password:
@@ -1497,6 +1534,14 @@ def toggle_user(user_id):
         return jsonify(error="Não é possível desativar o usuário autenticado."), 400
     if user.active and User.query.filter_by(active=True).count() <= 1:
         return jsonify(error="Não é possível desativar o último usuário ativo."), 400
+    if (
+        user.active
+        and user.abuse_access
+        and User.query.filter_by(active=True, abuse_access=True).count() <= 1
+    ):
+        return jsonify(
+            error="Não é possível desativar o último usuário com acesso ao módulo de abuse."
+        ), 400
 
     user.active = not user.active
     db.session.commit()
@@ -1577,12 +1622,28 @@ def get_or_create_parameter_settings():
 
 def serialize_parameter_settings(settings):
     return {
-        "dns_primary": settings.dns_primary,
-        "dns_secondary": settings.dns_secondary,
+        "dns_primary": settings.dns_primary or "",
+        "dns_secondary": settings.dns_secondary or "",
         "extra_dns_servers": load_json_list(settings.extra_dns_servers),
-        "publish_routers": load_router_targets(settings.publish_routers),
+        "publish_routers": public_targets(load_targets(settings.publish_routers, "router")),
         "router_command_ipv4": settings.router_command_ipv4 or DEFAULT_ROUTER_COMMAND_IPV4,
         "router_command_ipv6": settings.router_command_ipv6 or DEFAULT_ROUTER_COMMAND_IPV6,
+        "rpz_servers": public_targets(load_targets(settings.rpz_servers, "bind")),
+        "rpz_nameserver": settings.rpz_nameserver or "",
+        "ssh_strict_host_key_checking": settings.ssh_strict_host_key_checking is not False,
+        "smtp_host": settings.smtp_host or "",
+        "smtp_port": settings.smtp_port or "",
+        "smtp_security": settings.smtp_security or "starttls",
+        "smtp_user": settings.smtp_user or "",
+        "smtp_password_set": bool(settings.smtp_password),
+        "smtp_from_email": settings.smtp_from_email or "",
+        "smtp_from_name": settings.smtp_from_name or "",
+        "email_signature": settings.email_signature or "",
+        "imap_host": settings.imap_host or "",
+        "imap_port": settings.imap_port or "",
+        "imap_user": settings.imap_user or "",
+        "imap_password_set": bool(settings.imap_password),
+        "imap_mailbox": settings.imap_mailbox or "",
         "updated_at": iso_utc(settings.updated_at),
     }
 
@@ -1593,6 +1654,112 @@ def normalize_json_list_payload(value):
     if isinstance(value, str):
         value = [value]
     return json.dumps([str(item).strip() for item in value if str(item).strip()])
+
+
+def apply_smtp_payload(settings, payload):
+    """Valida e aplica os campos de SMTP (sem commit). Levanta ValueError."""
+    if "smtp_host" in payload:
+        settings.smtp_host = str(payload["smtp_host"] or "").strip() or None
+    if "smtp_port" in payload:
+        raw_port = str(payload["smtp_port"] or "").strip()
+        try:
+            port = int(raw_port) if raw_port else None
+        except ValueError as exc:
+            raise ValueError("Porta SMTP deve ser um número inteiro.") from exc
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError("Porta SMTP deve estar entre 1 e 65535.")
+        settings.smtp_port = port
+    if "smtp_security" in payload:
+        security = str(payload["smtp_security"] or "starttls").strip()
+        if security not in SMTP_SECURITIES:
+            raise ValueError("Segurança SMTP inválida: use starttls, ssl ou none.")
+        settings.smtp_security = security
+    for key in ("smtp_user", "smtp_from_name"):
+        if key in payload:
+            setattr(settings, key, str(payload[key] or "").strip() or None)
+    if "smtp_from_email" in payload:
+        from_email = str(payload["smtp_from_email"] or "").strip()
+        if from_email and not parse_recipients(from_email)[0]:
+            raise ValueError("E-mail remetente inválido.")
+        settings.smtp_from_email = from_email or None
+    if "email_signature" in payload:
+        settings.email_signature = str(payload["email_signature"] or "").strip() or None
+    # Senha só muda quando enviada; "clear_smtp_password" apaga a atual.
+    if payload.get("smtp_password"):
+        settings.smtp_password = str(payload["smtp_password"])
+    elif payload.get("clear_smtp_password"):
+        settings.smtp_password = None
+
+
+@api_bp.route("/parameter-settings/smtp-test", methods=["POST"])
+@require_auth
+def test_smtp_settings():
+    """Testa a conexão com os dados do formulário (ainda não salvos), sem gravar nada."""
+    settings = get_or_create_parameter_settings()
+    try:
+        apply_smtp_payload(settings, request.get_json(silent=True) or {})
+        problem = smtp_config_problem(settings)
+        if problem:
+            raise ValueError(problem)
+        test_smtp_connection(settings)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception as exc:
+        return jsonify(error=f"Falha na conexão: {describe_mail_error(exc)}"), 502
+    finally:
+        db.session.rollback()
+    return jsonify(message="Conexão e autenticação SMTP OK.")
+
+
+def apply_imap_payload(settings, payload):
+    """Valida e aplica os campos da caixa de abuse (sem commit). Levanta ValueError."""
+    if "imap_host" in payload:
+        settings.imap_host = str(payload["imap_host"] or "").strip()
+    if "imap_port" in payload:
+        raw_port = str(payload["imap_port"] or "").strip()
+        try:
+            port = int(raw_port) if raw_port else None
+        except ValueError as exc:
+            raise ValueError("Porta IMAP deve ser um número inteiro.") from exc
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError("Porta IMAP deve estar entre 1 e 65535.")
+        settings.imap_port = port
+    for key in ("imap_user", "imap_mailbox"):
+        if key in payload:
+            setattr(settings, key, str(payload[key] or "").strip() or None)
+    # Senha só muda quando enviada; "clear_imap_password" apaga a atual.
+    if payload.get("imap_password"):
+        settings.imap_password = str(payload["imap_password"])
+    elif payload.get("clear_imap_password"):
+        settings.imap_password = None
+
+
+@api_bp.route("/parameter-settings/imap-test", methods=["POST"])
+@require_auth
+def test_imap_settings():
+    """Testa login e abertura da caixa (somente leitura) com os dados do formulário,
+    ainda não salvos, sem gravar nada."""
+    settings = get_or_create_parameter_settings()
+    connection = None
+    try:
+        apply_imap_payload(settings, request.get_json(silent=True) or {})
+        config = ImapConfig.from_settings(settings)
+        if config is None:
+            raise ValueError("Servidor IMAP não configurado.")
+        connection = imap_connect(config)
+        ReadOnlyMailbox(connection, config.mailbox)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+    except Exception as exc:
+        return jsonify(error=f"Falha na conexão: {exc}"), 502
+    finally:
+        db.session.rollback()
+        if connection is not None:
+            try:
+                connection.logout()
+            except Exception:
+                pass
+    return jsonify(message="Conexão IMAP OK: login feito e caixa aberta em modo somente leitura.")
 
 
 @api_bp.route("/parameter-settings", methods=["GET"])
@@ -1615,10 +1782,35 @@ def update_parameter_settings():
     if template_error:
         return jsonify(error=template_error), 400
 
+    rpz_nameserver = (payload.get("rpz_nameserver") or "").strip().rstrip(".")
+    if rpz_nameserver and not normalize_domain(rpz_nameserver):
+        return jsonify(error="Servidor de nomes da zona RPZ inválido: use um nome como ns1.exemplo.com.br."), 400
+
+    try:
+        publish_routers = merge_targets(
+            payload.get("publish_routers"), load_targets(settings.publish_routers, "router"), "router"
+        )
+        rpz_servers = merge_targets(
+            payload.get("rpz_servers"), load_targets(settings.rpz_servers, "bind"), "bind"
+        )
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+    try:
+        apply_smtp_payload(settings, payload)
+        apply_imap_payload(settings, payload)
+    except ValueError as exc:
+        db.session.rollback()
+        return jsonify(error=str(exc)), 400
+
     settings.dns_primary = (payload.get("dns_primary") or "").strip()
     settings.dns_secondary = (payload.get("dns_secondary") or "").strip()
     settings.extra_dns_servers = normalize_json_list_payload(payload.get("extra_dns_servers"))
-    settings.publish_routers = dump_router_targets(payload.get("publish_routers"))
+    settings.publish_routers = dump_targets(publish_routers)
+    settings.rpz_servers = dump_targets(rpz_servers)
+    settings.rpz_nameserver = rpz_nameserver or None
+    if "ssh_strict_host_key_checking" in payload:
+        settings.ssh_strict_host_key_checking = bool(payload["ssh_strict_host_key_checking"])
     settings.router_command_ipv4 = router_command_ipv4
     settings.router_command_ipv6 = router_command_ipv6
     db.session.commit()

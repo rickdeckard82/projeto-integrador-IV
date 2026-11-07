@@ -1,0 +1,15 @@
+From: alerts@unknown-tz.example
+To: abuse@isp.example
+Subject: Incidents
+Date: Wed, 14 Oct 2026 12:00:00 +0000
+Message-ID: <csv-2@unknown-tz.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B6"
+
+--B6
+Content-Type: text/csv; name="events.csv"
+Content-Disposition: attachment; filename="events.csv"
+
+timestamp,src_ip,src_port,category
+2026-10-14 08:00:00,203.0.113.60,5000,ddos
+--B6--

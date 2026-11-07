@@ -1,0 +1,20 @@
+From: John <john@victim.example>
+To: abuse@isp.example
+Subject: Your customer is hacking me
+Date: Wed, 14 Oct 2026 15:00:00 +0000
+Message-ID: <text-1@victim.example>
+Content-Type: text/plain; charset=utf-8
+
+Hi,
+
+your IPs 203.0.113.50 and 2001:db8:100::50 are attacking my server 198.51.100.77
+around 14:30:00 on port 22.
+
+---------- Forwarded message ---------
+Received: from evil.example (203.0.113.51)
+	by mx.victim.example with ESMTP; Wed, 14 Oct 2026
+X-Originating-IP: 203.0.113.52
+	203.0.113.53
+From: x@isp.example
+
+Regards

@@ -9,10 +9,11 @@ from flask import Flask
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import OperationalError
 
-from .models import IpBatch, OfficeFile, UploadBatch, User, db
+from .models import IpBatch, OfficeFile, ParameterSettings, UploadBatch, User, db
+from .ssh_settings import dump_targets, has_legacy_env, legacy_env_targets, load_targets
 
 
-def create_app():
+def create_app(test_config=None):
     load_dotenv()
 
     app = Flask(__name__)
@@ -22,9 +23,7 @@ def create_app():
     )
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Strict"
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv(
-        "DATABASE_URL", "mysql+pymysql://anatel:anatel@db:3306/anatel"
-    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
         "pool_pre_ping": True,
@@ -44,6 +43,9 @@ def create_app():
     app.config["WHOIS_WORKER_MAX_ATTEMPTS"] = int(os.getenv("WHOIS_WORKER_MAX_ATTEMPTS", "3"))
     app.config["PUBLISH_LOCK_TIMEOUT_MINUTES"] = int(os.getenv("PUBLISH_LOCK_TIMEOUT_MINUTES", "30"))
     app.config["API_KEY"] = os.getenv("API_KEY", "")
+
+    if test_config:
+        app.config.update(test_config)
 
     Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
 
@@ -66,10 +68,12 @@ def init_database(app):
 
 def ensure_admin_user():
     username = os.getenv("ADMIN_USERNAME", "admin")
-    password = os.getenv("ADMIN_PASSWORD", "admin")
+    password = os.getenv("ADMIN_PASSWORD")
 
     if not User.query.filter_by(username=username).first():
-        user = User(username=username)
+        if not password:
+            raise RuntimeError("Defina ADMIN_PASSWORD no .env para criar o usuário administrador inicial.")
+        user = User(username=username, abuse_access=True)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()
@@ -86,6 +90,16 @@ def ensure_schema():
         db.session.commit()
     if "api_token_hash" not in user_columns:
         db.session.execute(text("ALTER TABLE user ADD COLUMN api_token_hash VARCHAR(64) NULL"))
+        db.session.commit()
+    if "abuse_access" not in user_columns:
+        db.session.execute(
+            text("ALTER TABLE user ADD COLUMN abuse_access BOOL NOT NULL DEFAULT FALSE")
+        )
+        # Só o administrador inicial recebe acesso; os demais são liberados em Usuários.
+        db.session.execute(
+            text("UPDATE user SET abuse_access = TRUE WHERE username = :username"),
+            {"username": os.getenv("ADMIN_USERNAME", "admin")},
+        )
         db.session.commit()
 
     user_unique_columns = {
@@ -116,6 +130,10 @@ def ensure_schema():
     if "office_key" not in upload_columns:
         db.session.execute(text("ALTER TABLE upload_batch ADD COLUMN office_key VARCHAR(160) NULL"))
         db.session.execute(text("CREATE INDEX ix_upload_batch_office_key ON upload_batch (office_key)"))
+        db.session.commit()
+
+    if "notification_sent_at" not in upload_columns:
+        db.session.execute(text("ALTER TABLE upload_batch ADD COLUMN notification_sent_at DATETIME NULL"))
         db.session.commit()
 
     table_names = set(inspector.get_table_names())
@@ -165,10 +183,31 @@ def ensure_schema():
 
     if "parameter_settings" in table_names:
         parameter_columns = {column["name"] for column in inspector.get_columns("parameter_settings")}
-        for column_name in ("publish_routers", "router_command_ipv4", "router_command_ipv6"):
+        new_parameter_columns = {
+            "publish_routers": "TEXT",
+            "router_command_ipv4": "TEXT",
+            "router_command_ipv6": "TEXT",
+            "rpz_servers": "TEXT",
+            "rpz_nameserver": "VARCHAR(253)",
+            "ssh_strict_host_key_checking": "BOOL",
+            "smtp_host": "VARCHAR(253)",
+            "smtp_port": "INTEGER",
+            "smtp_security": "VARCHAR(10)",
+            "smtp_user": "VARCHAR(255)",
+            "smtp_password": "VARCHAR(255)",
+            "smtp_from_email": "VARCHAR(255)",
+            "smtp_from_name": "VARCHAR(160)",
+            "email_signature": "TEXT",
+            "imap_host": "VARCHAR(253)",
+            "imap_port": "INTEGER",
+            "imap_user": "VARCHAR(255)",
+            "imap_password": "VARCHAR(255)",
+            "imap_mailbox": "VARCHAR(255)",
+        }
+        for column_name, column_type in new_parameter_columns.items():
             if column_name not in parameter_columns:
                 db.session.execute(
-                    text(f"ALTER TABLE parameter_settings ADD COLUMN {column_name} TEXT NULL")
+                    text(f"ALTER TABLE parameter_settings ADD COLUMN {column_name} {column_type} NULL")
                 )
                 db.session.commit()
 
@@ -196,8 +235,65 @@ def ensure_schema():
             db.session.execute(text("ALTER TABLE domain ADD COLUMN redirect_target VARCHAR(253) NULL"))
             db.session.commit()
 
+    if "sent_email" in table_names:
+        sent_email_columns = {column["name"] for column in inspector.get_columns("sent_email")}
+        if "attachments" not in sent_email_columns:
+            db.session.execute(text("ALTER TABLE sent_email ADD COLUMN attachments TEXT NULL"))
+            db.session.commit()
+
+    if "backup_schedule" in table_names:
+        backup_columns = {column["name"] for column in inspector.get_columns("backup_schedule")}
+        if "ftp_write_only" not in backup_columns:
+            db.session.execute(
+                text("ALTER TABLE backup_schedule ADD COLUMN ftp_write_only BOOL NOT NULL DEFAULT FALSE")
+            )
+            db.session.commit()
+
     ensure_office_keys()
     ensure_legacy_office_files()
+    import_legacy_ssh_settings()
+    import_legacy_imap_settings()
+
+
+def import_legacy_imap_settings():
+    """Copia a caixa de abuse do .env (ABUSE_IMAP_*) para Parâmetros, uma única vez
+    (enquanto o servidor IMAP nunca foi salvo)."""
+    settings = ParameterSettings.query.order_by(ParameterSettings.id.asc()).first()
+    host = (os.getenv("ABUSE_IMAP_HOST") or "").strip()
+    if (settings and settings.imap_host is not None) or not host:
+        return
+    if not settings:
+        settings = ParameterSettings()
+        db.session.add(settings)
+
+    try:
+        port = int(os.getenv("ABUSE_IMAP_PORT") or 993)
+    except ValueError:
+        port = 993
+    settings.imap_host = host
+    settings.imap_port = port
+    settings.imap_user = (os.getenv("ABUSE_IMAP_USER") or "").strip() or None
+    settings.imap_password = os.getenv("ABUSE_IMAP_PASSWORD") or None
+    settings.imap_mailbox = (os.getenv("ABUSE_IMAP_MAILBOX") or "").strip() or None
+    db.session.commit()
+
+
+def import_legacy_ssh_settings():
+    """Copia BIND, credenciais dos roteadores e servidor de nomes do .env para
+    Parâmetros, uma única vez (enquanto os servidores BIND nunca foram salvos)."""
+    settings = ParameterSettings.query.order_by(ParameterSettings.id.asc()).first()
+    if (settings and settings.rpz_servers is not None) or not has_legacy_env():
+        return
+    if not settings:
+        settings = ParameterSettings()
+        db.session.add(settings)
+
+    servers, routers, strict = legacy_env_targets(load_targets(settings.publish_routers, "router"))
+    settings.rpz_servers = dump_targets(servers)
+    settings.publish_routers = dump_targets(routers)
+    settings.ssh_strict_host_key_checking = strict
+    settings.rpz_nameserver = settings.rpz_nameserver or (os.getenv("RPZ_NAMESERVER") or "").strip() or None
+    db.session.commit()
 
 
 def ensure_office_keys():

@@ -1,0 +1,48 @@
+From: abusereport@lrob.example
+To: abuse@isp.example
+Subject: Abuse report for IP 203.0.113.247 - AS64500 - Mon, 19 Oct 2026 18:09:55 +0000 [SL-ed8be9e6]
+Date: Mon, 19 Oct 2026 18:09:55 +0000
+Message-ID: <xarf42@lrob.example>
+X-ARF: PLAIN
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="c057"
+
+--c057
+Content-Transfer-Encoding: 8bit
+Content-Type: text/plain; charset=utf-8
+
+Dear Abuse Team,
+
+IP 203.0.113.247 from AS64500 Example ISP was banned by our server on 2026-10-19 18:09:34 UTC.
+
+Attack details:
+Date (UTC): 2026-10-19 18:09:34
+Detected attacking IP: 203.0.113.247 | From AS64500 Example ISP
+Category for the detection: scraping
+
+Log lines that convicted this IP, prefixed by UTC time, then as the server wrote them:
+2026-10-19T18:09:03Z  src port 37363  203.0.113.247 - - [19/Oct/2026:20:09:03 +0200] "GET / HTTP/1.1" 429 146
+
+The same report is attached as an X-ARF v4 document (xarf.json, connection/scraping).
+
+--c057
+Content-Disposition: attachment; filename="xarf.json"
+Content-Transfer-Encoding: base64
+Content-Type: application/json; name="xarf.json"
+
+eyJjYXRlZ29yeSI6ICJjb25uZWN0aW9uIiwgImNvbmZpZGVuY2UiOiAwLjksICJkZXNjcmlwdGlv
+biI6ICJEaXN0cmlidXRlZCBjcmF3bCBvZiBvdXIgY29kZSBmb3JnZS4iLCAiZGVzdGluYXRpb25f
+aG9zdHMiOiBbImdpdC5scm9iLmV4YW1wbGUiXSwgImRlc3RpbmF0aW9uX3BvcnQiOiA0NDMsICJl
+dmlkZW5jZSI6IFt7ImNvbnRlbnRfdHlwZSI6ICJ0ZXh0L3BsYWluIiwgInBheWxvYWQiOiAiTWpB
+ekxqQXVNVEV6TGpJME55QXRJQzBnV3pFNUwwOWpkQzh5TURJMk9qSXdPakE1T2pBeklDc3dNakF3
+WFNBaVIwVlVJQzhnU0ZSVVVDOHhMakVpSURReU9TQXhORFk9IiwgInNpemUiOiA3MH1dLCAiZXZp
+ZGVuY2Vfc291cmNlIjogImZpcmV3YWxsX2xvZ3MiLCAiZmlyc3Rfc2VlbiI6ICIyMDI2LTEwLTE5
+VDE4OjA5OjAzWiIsICJsYXN0X3NlZW4iOiAiMjAyNi0xMC0xOVQxODowOTozNFoiLCAicHJvdG9j
+b2wiOiAidGNwIiwgInJlcG9ydGVyIjogeyJjb250YWN0IjogImFidXNlcmVwb3J0QGxyb2IuZXhh
+bXBsZSIsICJkb21haW4iOiAibHJvYi5leGFtcGxlIiwgIm9yZyI6ICJMUm9iIn0sICJzb3VyY2Vf
+aWRlbnRpZmllciI6ICIyMDMuMC4xMTMuMjQ3IiwgInNvdXJjZV9wb3J0IjogMzczNjMsICJzb3Vy
+Y2VfcG9ydHMiOiBbMzczNjNdLCAidGFncyI6IFsicnVsZTpmb3JnZS1jcmF3bCJdLCAidGltZXN0
+YW1wIjogIjIwMjYtMTAtMTlUMTg6MDk6MDNaIiwgInR5cGUiOiAic2NyYXBpbmciLCAieGFyZl92
+ZXJzaW9uIjogIjQuMi4wIn0=
+
+--c057--

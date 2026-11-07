@@ -26,6 +26,7 @@ from .models import (
     OfficeFile,
     ParameterSettings,
     PublicationLock,
+    SentEmail,
     UploadBatch,
     User,
     WhitelistDomain,
@@ -33,6 +34,7 @@ from .models import (
     db,
 )
 from .ssh_publish import publish_ip_routes
+from .ssh_settings import load_targets
 from .whois_jobs import enqueue_ip_whois_jobs
 
 ALLOWED_EXTENSIONS = {".pdf", ".ods", ".xls", ".xlsx", ".xlsm"}
@@ -60,7 +62,9 @@ def start_router_deployment(deployment_id, route_config, log_message, lock_name=
                     release_publish_lock(lock_name)
                 return
             try:
-                deployment.message = publish_ip_routes(route_config, routers)
+                deployment.message = publish_ip_routes(
+                    route_config, routers, configured_strict_host_key_checking()
+                )
                 deployment.status = "success"
             except Exception as exc:
                 current_app.logger.exception(log_message)
@@ -118,7 +122,7 @@ def load_json_list(value):
 def build_communication_config(company, parameters):
     company = company or CompanySettings()
     parameters = parameters or ParameterSettings()
-    publish_routers = load_router_targets(parameters.publish_routers)
+    publish_routers = load_targets(parameters.publish_routers, "router")
     return {
         "dnsServers": [
             value
@@ -132,6 +136,8 @@ def build_communication_config(company, parameters):
         "dutyEmail": company.duty_email or "",
         "companyName": company.company_name or "",
         "companyAddressLines": company_address_lines(company),
+        "smtpConfigured": bool(parameters.smtp_host and parameters.smtp_from_email),
+        "emailSignature": parameters.email_signature or "",
     }
 
 
@@ -323,6 +329,10 @@ def perform_office_deletion(office):
                 Domain.first_seen_batch_id == office.id,
             ).update({Domain.first_seen_batch_id: None}, synchronize_session=False)
 
+        # O histórico de e-mails enviados é mantido (guarda o número do ofício).
+        SentEmail.query.filter_by(office_id=office.id).update(
+            {SentEmail.office_id: None}, synchronize_session=False
+        )
         OfficeDomain.query.filter_by(office_id=office.id).delete(synchronize_session=False)
         OfficeFile.query.filter_by(office_id=office.id).delete(synchronize_session=False)
         if ip_batch_ids:
@@ -412,6 +422,15 @@ def save_ip_batch(batch, found_ips, batch_files=None):
     insert_ip_addresses(new_addresses)
 
     ip_ids_by_address = load_ip_ids_by_address(found_ips)
+
+    reactivated_ip_ids = [
+        ip_ids_by_address[address] for address in existing_addresses if address in ip_ids_by_address
+    ]
+    if reactivated_ip_ids:
+        IpAddress.query.filter(
+            IpAddress.id.in_(reactivated_ip_ids), IpAddress.active.is_(False)
+        ).update({IpAddress.active: True}, synchronize_session=False)
+
     insert_ip_batch_addresses(batch.id, [ip_ids_by_address[address] for address in found_ips])
 
     batch.total_found = len(found_ips)
@@ -445,6 +464,15 @@ def add_domains_to_office(office, domains, removal_date, office_files=None, redi
             )
 
         domain_ids_by_name = load_domain_ids_by_name(domains)
+
+        reactivated_domain_ids = [
+            domain_ids_by_name[name] for name in existing_names if name in domain_ids_by_name
+        ]
+        if reactivated_domain_ids:
+            Domain.query.filter(
+                Domain.id.in_(reactivated_domain_ids), Domain.active.is_(False)
+            ).update({Domain.active: True}, synchronize_session=False)
+
         existing_link_ids = {
             row.domain_id
             for row in OfficeDomain.query.filter_by(office_id=office.id)
@@ -588,6 +616,14 @@ def active_ip_addresses_for_batch(batch_id):
     ]
 
 
+def office_ip_route_config(office):
+    """Config de rotas discard dos IPs ativos do ofício (todos os lotes dele)."""
+    addresses = set()
+    for batch in ip_batches_query_for_office(office).all():
+        addresses.update(active_ip_addresses_for_batch(batch.id))
+    return build_ip_route_config(addresses) if addresses else ""
+
+
 def active_domain_names_for_rpz():
     whitelist = whitelisted_domain_names()
     return [
@@ -688,47 +724,25 @@ def build_ip_route_delete_config(addresses, settings=None):
     return "\n".join(lines) + ("\n" if lines else "")
 
 
-def load_router_targets(value):
-    if not value:
-        return []
-    try:
-        loaded = json.loads(value)
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(loaded, list):
-        return []
-    targets = []
-    for item in loaded:
-        if not isinstance(item, dict):
-            continue
-        host = str(item.get("host", "")).strip()
-        if not host:
-            continue
-        name = str(item.get("name", "")).strip()
-        targets.append({"name": name or host, "host": host})
-    return targets
-
-
-def dump_router_targets(value):
-    if not value:
-        return json.dumps([])
-    if not isinstance(value, list):
-        return json.dumps([])
-    targets = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        host = str(item.get("host", "")).strip()
-        if not host:
-            continue
-        name = str(item.get("name", "")).strip()
-        targets.append({"name": name or host, "host": host})
-    return json.dumps(targets)
+def current_parameter_settings():
+    return ParameterSettings.query.order_by(ParameterSettings.id.asc()).first() or ParameterSettings()
 
 
 def configured_router_targets():
-    settings = ParameterSettings.query.order_by(ParameterSettings.id.asc()).first()
-    return load_router_targets(settings.publish_routers) if settings else []
+    return load_targets(current_parameter_settings().publish_routers, "router")
+
+
+def configured_bind_servers():
+    return load_targets(current_parameter_settings().rpz_servers, "bind")
+
+
+def configured_rpz_nameserver():
+    return current_parameter_settings().rpz_nameserver or None
+
+
+def configured_strict_host_key_checking():
+    # NULL (nunca salvo) conta como ligado.
+    return current_parameter_settings().ssh_strict_host_key_checking is not False
 
 
 def ip_config_sort_key(value):
@@ -841,15 +855,19 @@ def load_batches_by_ip(ip_ids):
     return batches_by_ip
 
 
-def load_ip_removal_by_ip(ip_ids):
-    if not ip_ids:
+def load_ip_removal_by_ip(ip_ids, batch_ids):
+    """Data de remocao "atual" de cada IP dentro do oficio: a do lote mais recente
+    que o referencia (nao a mais antiga entre todos os oficios que ja o citaram),
+    para que reimportar um IP num oficio novo sem prazo limpe o status "expirado"
+    de um lote antigo em vez de ficar preso a ele para sempre."""
+    if not ip_ids or not batch_ids:
         return {}
 
     rows = (
         db.session.query(IpBatchAddress.ip_id, IpBatch.removal_date)
         .join(IpBatch, IpBatch.id == IpBatchAddress.batch_id)
-        .filter(IpBatchAddress.ip_id.in_(ip_ids), IpBatch.removal_date.isnot(None))
-        .order_by(IpBatch.removal_date.asc())
+        .filter(IpBatchAddress.ip_id.in_(ip_ids), IpBatch.id.in_(batch_ids))
+        .order_by(IpBatch.created_at.desc())
         .all()
     )
     removal_by_ip = {}

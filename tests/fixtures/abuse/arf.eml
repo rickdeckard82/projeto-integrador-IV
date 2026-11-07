@@ -1,0 +1,30 @@
+From: Feedback Loop <fbl@mail.example>
+To: abuse@isp.example
+Subject: FW: spam complaint
+Date: Wed, 14 Oct 2026 12:00:00 -0300
+Message-ID: <arf-1@mail.example>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=feedback-report; boundary="B3"
+
+--B3
+Content-Type: text/plain
+
+This is an email abuse report for an email message received from IP 203.0.113.20.
+
+--B3
+Content-Type: message/feedback-report
+
+Feedback-Type: abuse
+User-Agent: SomeGenerator/1.0
+Version: 1
+Source-IP: 203.0.113.20
+Source-Port: 40001
+Arrival-Date: Wed, 14 Oct 2026 11:45:00 -0300
+
+--B3
+Content-Type: text/rfc822-headers
+
+Received: from mx.isp.example (203.0.113.99) by mail.example
+From: someone@isp.example
+
+--B3--

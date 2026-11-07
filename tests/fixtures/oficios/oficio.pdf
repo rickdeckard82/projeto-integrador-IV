@@ -1,0 +1,59 @@
+%PDF-1.4
+%âãÏÓ
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 292 >>
+stream
+BT /F1 12 Tf 72 760 Td 16 TL
+(Ofício nº 1234/2026/ORG-EXEMPLO) Tj T*
+(Assunto: Bloqueio de domínios e endereços IP) Tj T*
+(Solicitamos o bloqueio dos domínios abaixo:) Tj T*
+(1. apostas-exemplo.com.br) Tj T*
+(2. www.cassino-teste.net) Tj T*
+(3. https://jogo-proibido.org/pagina?id=1) Tj T*
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 269 >>
+stream
+BT /F1 12 Tf 72 760 Td 16 TL
+(E dos endereços IP:) Tj T*
+(203.0.113.10) Tj T*
+(198.51.100.0/24) Tj T*
+(2001:db8::1) Tj T*
+(Anexos: Lista \(SEI nº 0012345\)) Tj T*
+(Atenciosamente,) Tj T*
+(Documento assinado eletronicamente por Fulano, em 15/10/2026, às 10:00.) Tj T*
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000127 00000 n 
+0000000224 00000 n 
+0000000350 00000 n 
+0000000693 00000 n 
+0000000819 00000 n 
+trailer
+<< /Size 8 /Root 1 0 R >>
+startxref
+1139
+%%EOF

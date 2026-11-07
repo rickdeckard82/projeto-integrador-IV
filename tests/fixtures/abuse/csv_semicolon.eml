@@ -1,0 +1,23 @@
+From: alerts@soc.example
+To: abuse@isp.example
+Subject: Incidents
+Date: Wed, 14 Oct 2026 12:00:00 +0000
+Message-ID: <csv-1@soc.example>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="B4"
+
+--B4
+Content-Type: text/plain
+
+Attached.
+
+--B4
+Content-Type: text/csv; name="events.csv"
+Content-Disposition: attachment; filename="events.csv"
+
+timestamp;src_ip;src_port;dst_ip;dst_port;type
+2026-10-14 08:00:00 UTC;203.0.113.30;45001;198.51.100.9;80;bruteforce
+2026-10-14T08:05:00-03:00;203.0.113.31;45002;198.51.100.9;80;bruteforce
+2026-10-14 08:06:00+0000;198.51.100.50;45003;203.0.113.1;80;bruteforce
+2026-10-14 08:00:00 UTC;203.0.113.30;45001;198.51.100.9;80;bruteforce
+--B4--
