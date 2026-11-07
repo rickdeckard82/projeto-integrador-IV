@@ -90,3 +90,7 @@ export function deployOfficeIpRoutes(id) {
 export function deployOfficeExpiredIpsDelete(id) {
   return api.post(`/offices/${id}/deploy-expired-ips-delete`, { confirm: true });
 }
+
+export function setOfficeNotification(id, sent) {
+  return api.put(`/offices/${id}/notification`, { sent });
+}

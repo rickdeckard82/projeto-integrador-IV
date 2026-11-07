@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
       .me()
       .then((data) => {
         if (data.type === "user") {
-          setUser({ id: data.id, username: data.username });
+          setUser({ id: data.id, username: data.username, abuse_access: Boolean(data.abuse_access) });
         }
         setStatus("authenticated");
       })

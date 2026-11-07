@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext.jsx";
 
 const CARDS = [
   {
@@ -29,7 +30,23 @@ const CARDS = [
   },
 ];
 
+const ABUSE_CARDS = [
+  {
+    to: "/general/abuse",
+    title: "Abuse",
+    description: "Prefixos próprios, fusos por remetente, janela de consulta e retenção do e-mail bruto.",
+  },
+  {
+    to: "/general/cgnat",
+    title: "CGNAT",
+    description: "Importação das regras de CGNAT (fixed-nat do A10) com vigência.",
+  },
+];
+
 export default function GeneralPage() {
+  const { user } = useAuth();
+  const cards = user?.abuse_access ? [...CARDS, ...ABUSE_CARDS] : CARDS;
+
   return (
     <div>
       <div className="page-head">
@@ -40,7 +57,7 @@ export default function GeneralPage() {
       </div>
 
       <section className="settings-grid">
-        {CARDS.map((card) => (
+        {cards.map((card) => (
           <Link className="settings-card settings-card-link" to={card.to} key={card.to}>
             <div>
               <h2>{card.title}</h2>

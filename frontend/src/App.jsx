@@ -18,6 +18,18 @@ import WhitelistPage from "./pages/WhitelistPage.jsx";
 import BackupPage from "./pages/BackupPage.jsx";
 import CommunicationsPage from "./pages/CommunicationsPage.jsx";
 import LogPage from "./pages/LogPage.jsx";
+import RequireAbuseAccess from "./auth/RequireAbuseAccess.jsx";
+import AbuseIncidentsPage from "./pages/AbuseIncidentsPage.jsx";
+import AbuseIncidentDetailPage from "./pages/AbuseIncidentDetailPage.jsx";
+import AbuseMessagesPage from "./pages/AbuseMessagesPage.jsx";
+import AbuseMessageDetailPage from "./pages/AbuseMessageDetailPage.jsx";
+import AbuseSettingsPage from "./pages/AbuseSettingsPage.jsx";
+import CgnatRulesPage from "./pages/CgnatRulesPage.jsx";
+import AbuseAuditPage from "./pages/AbuseAuditPage.jsx";
+
+function abuse(element) {
+  return <RequireAbuseAccess>{element}</RequireAbuseAccess>;
+}
 
 export default function App() {
   return (
@@ -45,6 +57,13 @@ export default function App() {
         <Route path="/general/whitelist" element={<WhitelistPage />} />
         <Route path="/general/backup" element={<BackupPage />} />
         <Route path="/log" element={<LogPage />} />
+        <Route path="/abuse" element={abuse(<AbuseIncidentsPage />)} />
+        <Route path="/abuse/incidents/:incidentId" element={abuse(<AbuseIncidentDetailPage />)} />
+        <Route path="/abuse/messages" element={abuse(<AbuseMessagesPage />)} />
+        <Route path="/abuse/messages/:messageId" element={abuse(<AbuseMessageDetailPage />)} />
+        <Route path="/abuse/audit" element={abuse(<AbuseAuditPage />)} />
+        <Route path="/general/abuse" element={abuse(<AbuseSettingsPage />)} />
+        <Route path="/general/cgnat" element={abuse(<CgnatRulesPage />)} />
       </Route>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -1,0 +1,2 @@
+# Binários: sem conversão de fim de linha (o xref do PDF depende dos offsets exatos).
+*.pdf binary

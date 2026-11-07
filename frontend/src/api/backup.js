@@ -15,3 +15,19 @@ export function restoreFiles(file) {
   formData.append("confirm_phrase", CONFIRM_PHRASE);
   return api.postForm("/backup/files/restore", formData);
 }
+
+export function getBackupSchedule() {
+  return api.get("/backup/schedule");
+}
+
+export function updateBackupSchedule(payload) {
+  return api.put("/backup/schedule", payload);
+}
+
+export function testBackupSchedule(payload) {
+  return api.post("/backup/schedule/test", payload);
+}
+
+export function runBackupNow() {
+  return api.post("/backup/schedule/run");
+}

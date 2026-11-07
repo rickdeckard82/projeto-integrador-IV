@@ -5,6 +5,7 @@ export const DEPLOYMENT_LABELS = {
   "router-office-expired-delete": "Roteador (remoção de expirados)",
   "restore-database": "Restauração do banco",
   "restore-files": "Restauração dos arquivos",
+  "backup-ftp": "Backup automático (FTP)",
 };
 
 export const DEPLOYMENT_TYPE_OPTIONS = [
@@ -15,6 +16,7 @@ export const DEPLOYMENT_TYPE_OPTIONS = [
   { value: "router-office-expired-delete", label: "Roteador (remoção de expirados)" },
   { value: "restore-database", label: "Restauração do banco" },
   { value: "restore-files", label: "Restauração dos arquivos" },
+  { value: "backup-ftp", label: "Backup automático (FTP)" },
 ];
 
 export const DEPLOYMENT_STATUS_OPTIONS = [

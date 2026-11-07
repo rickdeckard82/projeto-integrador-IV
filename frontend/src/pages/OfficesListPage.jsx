@@ -168,6 +168,7 @@ export default function OfficesListPage() {
                 <th>IPs</th>
                 <th>Expedição</th>
                 <th>Status</th>
+                <th>Notificação</th>
                 <th>Criado por</th>
                 <th></th>
               </tr>
@@ -175,7 +176,7 @@ export default function OfficesListPage() {
             <tbody>
               {data.items.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="muted">
+                  <td colSpan={10} className="muted">
                     Nenhum ofício encontrado.
                   </td>
                 </tr>
@@ -193,6 +194,11 @@ export default function OfficesListPage() {
                   <td>
                     <Badge variant={office.expired ? "error" : "success"}>
                       {office.expired ? "expirado" : "em prazo"}
+                    </Badge>
+                  </td>
+                  <td>
+                    <Badge variant={office.notification_sent_at ? "success" : "warning"}>
+                      {office.notification_sent_at ? "enviada" : "pendente"}
                     </Badge>
                   </td>
                   <td>{office.created_by_username || "—"}</td>

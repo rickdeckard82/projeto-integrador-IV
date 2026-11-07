@@ -6,11 +6,13 @@ import {
   deployOfficeExpiredIpsDelete,
   deployOfficeIpRoutes,
   getOffice,
+  setOfficeNotification,
   toggleOfficeDomains,
   toggleOfficeIps,
   updateOfficeNumber,
 } from "../api/offices.js";
 import { deployRpz } from "../api/rpz.js";
+import Badge from "../components/Badge.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import FileList from "../components/FileList.jsx";
 import TrashIcon from "../components/TrashIcon.jsx";
@@ -72,6 +74,16 @@ export default function OfficeDetailPage() {
           : `${result.updated} IPs desativados${result.preserved ? ` (${result.preserved} preservados).` : "."}`;
       notify(label, "success");
       invalidate();
+    },
+    onError: (err) => notify(err.message, "error"),
+  });
+
+  const notificationMutation = useMutation({
+    mutationFn: (sent) => setOfficeNotification(officeId, sent),
+    onSuccess: (result) => {
+      notify(result.notification_sent_at ? "Notificação marcada como enviada." : "Marca de notificação removida.", "success");
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ["offices"] });
     },
     onError: (err) => notify(err.message, "error"),
   });
@@ -272,6 +284,24 @@ export default function OfficeDetailPage() {
               <dt>Expedição</dt>
               <dd>
                 {office.expedition_date ? formatDateOnly(office.expedition_date) : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt>Notificação (comunicado)</dt>
+              <dd>
+                <Badge variant={office.notification_sent_at ? "success" : "warning"}>
+                  {office.notification_sent_at ? "enviada" : "pendente"}
+                </Badge>{" "}
+                {office.notification_sent_at && new Date(office.notification_sent_at).toLocaleString("pt-BR")}{" "}
+                <button
+                  type="button"
+                  className="ghost compact"
+                  disabled={notificationMutation.isPending}
+                  onClick={() => notificationMutation.mutate(!office.notification_sent_at)}
+                >
+                  {office.notification_sent_at ? "Desmarcar" : "Marcar como enviada"}
+                </button>{" "}
+                <Link to="/comunicados">Comunicados</Link>
               </dd>
             </div>
             <div>

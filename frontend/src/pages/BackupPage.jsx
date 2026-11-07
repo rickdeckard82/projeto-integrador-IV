@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
 import DownloadButton from "../components/DownloadButton.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
+import BackupSchedulePanel from "../components/BackupSchedulePanel.jsx";
 import { restoreDatabase, restoreFiles } from "../api/backup.js";
 import { useToast } from "../components/Toast.jsx";
 
@@ -46,7 +47,7 @@ export default function BackupPage() {
       <div className="page-head">
         <div>
           <h1>Backup</h1>
-          <p>Baixe ou restaure o banco de dados e os arquivos anexados aos ofícios.</p>
+          <p>Baixe, agende ou restaure o banco de dados e os arquivos anexados aos ofícios.</p>
         </div>
         <div className="actions">
           <Link className="button ghost" to="/general">
@@ -77,16 +78,19 @@ export default function BackupPage() {
         </div>
       </div>
 
+      <h2>Backup automático (FTP)</h2>
+      <BackupSchedulePanel />
+
       <h2>Restaurar backup</h2>
       <div className="deploy-box">
         <div className="deploy-option">
           <p>
-            <strong>Restaura o banco de dados</strong> a partir de um arquivo .sql: apaga e recria
+            <strong>Restaura o banco de dados</strong> a partir de um arquivo .sql ou .sql.gz: apaga e recria
             todas as tabelas, substituindo todos os dados atuais pelos do backup. Ação irreversível.
           </p>
           <input
             type="file"
-            accept=".sql"
+            accept=".sql,.gz"
             onChange={(event) => setDbFile(event.target.files?.[0] || null)}
           />
           <button

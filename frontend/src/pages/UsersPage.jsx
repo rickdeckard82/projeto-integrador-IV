@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createUser, listUsers, toggleUser, updateUserPassword } from "../api/users.js";
+import { setAbuseAccess } from "../api/abuse.js";
+import { useAuth } from "../auth/AuthContext.jsx";
 import Badge from "../components/Badge.jsx";
 import ConfirmDialog from "../components/ConfirmDialog.jsx";
 import { useToast } from "../components/Toast.jsx";
@@ -51,8 +53,11 @@ export default function UsersPage() {
   const [form, setForm] = useState(emptyForm());
   const [formError, setFormError] = useState("");
   const [userToToggle, setUserToToggle] = useState(null);
+  const [accessToToggle, setAccessToToggle] = useState(null);
   const queryClient = useQueryClient();
   const { notify } = useToast();
+  const { user: currentUser } = useAuth();
+  const canManageAbuse = Boolean(currentUser?.abuse_access);
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["users"],
@@ -87,6 +92,22 @@ export default function UsersPage() {
     onError: (err) => {
       notify(err.message, "error");
       setUserToToggle(null);
+    },
+  });
+
+  const accessMutation = useMutation({
+    mutationFn: (user) => setAbuseAccess(user.id, !user.abuse_access),
+    onSuccess: (user) => {
+      notify(
+        `Acesso ao módulo de abuse ${user.abuse_access ? "concedido a" : "removido de"} ${user.username}.`,
+        "success"
+      );
+      setAccessToToggle(null);
+      invalidate();
+    },
+    onError: (err) => {
+      notify(err.message, "error");
+      setAccessToToggle(null);
     },
   });
 
@@ -179,6 +200,7 @@ export default function UsersPage() {
             <tr>
               <th>Usuário</th>
               <th>Status</th>
+              <th>Abuse</th>
               <th>Criado em</th>
               <th>Alterar senha</th>
               <th></th>
@@ -187,7 +209,7 @@ export default function UsersPage() {
           <tbody>
             {data.items.length === 0 && (
               <tr>
-                <td colSpan={5} className="muted">
+                <td colSpan={6} className="muted">
                   Nenhum usuário cadastrado.
                 </td>
               </tr>
@@ -199,6 +221,18 @@ export default function UsersPage() {
                   <Badge variant={user.active ? "success" : "error"}>
                     {user.active ? "Ativo" : "Inativo"}
                   </Badge>
+                </td>
+                <td>
+                  <Badge variant={user.abuse_access ? "success" : "running"}>
+                    {user.abuse_access ? "Com acesso" : "Sem acesso"}
+                  </Badge>
+                  {canManageAbuse && (
+                    <div>
+                      <button className="txt-button" type="button" onClick={() => setAccessToToggle(user)}>
+                        {user.abuse_access ? "Remover acesso" : "Conceder acesso"}
+                      </button>
+                    </div>
+                  )}
                 </td>
                 <td>{new Date(user.created_at).toLocaleString("pt-BR")}</td>
                 <td>
@@ -232,6 +266,23 @@ export default function UsersPage() {
         busy={toggleMutation.isPending}
         onConfirm={() => toggleMutation.mutate(userToToggle)}
         onCancel={() => setUserToToggle(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(accessToToggle)}
+        title={accessToToggle?.abuse_access ? "Remover acesso ao abuse" : "Conceder acesso ao abuse"}
+        message={
+          accessToToggle
+            ? accessToToggle.abuse_access
+              ? `Remover o acesso de ${accessToToggle.username} ao módulo de abuse?`
+              : `Conceder a ${accessToToggle.username} acesso ao módulo de abuse? Ele passará a ver IPs, portas, horários e o vínculo com assinantes (dados pessoais).`
+            : ""
+        }
+        confirmLabel="Confirmar"
+        danger={Boolean(accessToToggle?.abuse_access)}
+        busy={accessMutation.isPending}
+        onConfirm={() => accessMutation.mutate(accessToToggle)}
+        onCancel={() => setAccessToToggle(null)}
       />
     </div>
   );

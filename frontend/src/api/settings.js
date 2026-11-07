@@ -19,3 +19,11 @@ export function updateParameterSettings(payload) {
 export function getCommunicationsConfig() {
   return api.get("/communications-config");
 }
+
+export function testSmtpSettings(payload) {
+  return api.post("/parameter-settings/smtp-test", payload);
+}
+
+export function testImapSettings(payload) {
+  return api.post("/parameter-settings/imap-test", payload);
+}

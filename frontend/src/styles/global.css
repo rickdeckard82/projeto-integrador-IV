@@ -282,7 +282,8 @@ a {
   padding: 24px;
 }
 
-.deploy-box + h2 {
+.deploy-box + h2,
+.upload-panel + h2 {
   margin-top: 32px;
 }
 
@@ -478,6 +479,32 @@ button:disabled,
 
 .actions form {
   margin: 0;
+}
+
+.selection-actions {
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.selection-cell {
+  width: 40px;
+  text-align: center;
+}
+
+input.selection-checkbox {
+  width: 14px;
+  height: 14px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  vertical-align: middle;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+input.selection-checkbox:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .danger-button {
@@ -956,6 +983,35 @@ button:disabled,
   margin: 8px 0 0;
 }
 
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+/* Grupo de checkboxes em pílulas (.pill-radio) com legenda. */
+.check-group {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 20px 0 0;
+  min-width: 0;
+  padding: 10px 12px 12px;
+}
+
+.check-group legend {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 4px;
+}
+
+.check-group .pill-radio {
+  margin: 0;
+}
+
 .dynamic-list {
   margin: 18px 0 0;
 }
@@ -985,8 +1041,42 @@ button:disabled,
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
-.dynamic-row.publish-router-row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+/* Servidor BIND / roteador com credenciais SSH (SshTargetList). */
+.ssh-target {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin: 0;
+  min-width: 0;
+  padding: 12px 16px 0;
+}
+
+.ssh-target-head {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.secret-field {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.secret-field-head {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 17px;
+}
+
+.secret-field-head label {
+  margin: 0;
+}
+
+.secret-field-head .txt-button {
+  min-height: 22px;
 }
 
 .office-import-grid {
@@ -1388,6 +1478,58 @@ th {
   width: 14px;
 }
 
+.comms-email-grid {
+  align-items: start;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.comms-attachments {
+  margin-top: 12px;
+}
+
+.comms-attachments legend {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.comms-attachments small {
+  display: block;
+  margin: 8px 0;
+}
+
+.comms-file-picker {
+  margin-top: 4px;
+}
+
+.comms-file-list {
+  display: grid;
+  font-size: 13px;
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.comms-signature {
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+.comms-email-body {
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 13px;
+  margin: 8px 0 0;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
 .comms-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1450,6 +1592,64 @@ code {
   margin-top: 20px;
 }
 
+/* Módulo de abuse */
+.filters.filters-wide {
+  grid-template-columns: minmax(200px, 1fr) 150px 150px 190px 190px 90px;
+}
+
+.zone-preview.wrap {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.mono-textarea {
+  font-family: Consolas, Monaco, monospace;
+  min-height: 160px;
+}
+
+.short-textarea {
+  min-height: 90px;
+}
+
+.plain-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.stats strong.stats-small {
+  font-size: 14px;
+}
+
+.import-preview {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.plain-fieldset {
+  border: 0;
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.rule-group {
+  margin-bottom: 24px;
+}
+
+.detail-panel form,
+form.detail-panel {
+  display: grid;
+  gap: 12px;
+}
+
 @media (max-width: 1180px) {
   .office-import-grid {
     grid-template-columns: repeat(2, minmax(260px, 1fr));
@@ -1469,12 +1669,14 @@ code {
   .import-grid,
   .form-grid,
   .comms-form-grid,
+  .comms-email-grid,
   .comms-options,
   .inline-password-form,
   .dynamic-row,
   .detail-grid,
   .split-lists,
-  .filters {
+  .filters,
+  .filters.filters-wide {
     grid-template-columns: 1fr;
   }
 
